@@ -1,0 +1,4 @@
+ifcopenshell>=0.7.0.230418
+Jinja2>=3.1.2
+openpyxl>=3.1.2
+SOMcreator>=1.1.7
