@@ -21,9 +21,10 @@ def check_file(file_path,proj,ag,bk,db_name,add_zero_width):
     file = os.path.split(file_path)[1]
     check_all_elements(proj, ifc, file, db_name, ag, bk,add_zero_width)
 
-def main(file_paths,som_path,power_bi_path, db_path, ag, bk,issue_path,add_zero_width = False):
+def main(file_paths,som_path, db_path, ag, bk,issue_path,add_zero_width = False,power_bi_path = None):
     proj = import_project(som_path)
-    handle_definitions(proj,power_bi_path)
+    if power_bi_path is not None:
+        handle_definitions(proj,power_bi_path)
     create_tables(db_path)
 
     if not isinstance(file_paths,list):
@@ -54,4 +55,4 @@ if __name__ == "__main__":
     issue_path = os.path.join("Issues",f"{datetime.date.today()}_{projekt_kuerzel}.xlsx")
     pbip =   "C:/Users/ChristophMellueh/Deutsche Bahn/I.NI-SW-M-H - Dokumente/MA/PA1/04 Z-Akte/Themenakte/PowerBI/definitions.xlsx"
     fp = [path_1]
-    main(fp,sp,pbip,dbp,alg,bauk,issue_path,False)
+    main(fp,sp,dbp,alg,bauk,issue_path,False,pbip)
