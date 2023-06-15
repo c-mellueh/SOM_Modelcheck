@@ -10,9 +10,6 @@ def write_bauteilklass(proj,ws):
     ws.cell(row=1,column=2).value = "Name"
     ws.cell(row=1,column=3).value = "AttributAnzahl"
     ident_dict = {obj.ident_value:obj.name for obj in proj.objects}
-    ident_dict["aus"] = "Ausbau"
-    ident_dict["lst"] = "Leit und Sicherungstechnik"
-    ident_dict["lst.geo"] = "Leit und Sicherungstechnik GEO"
 
     ma= max(len(obj.ident_value.split(".")) for obj in proj.objects if obj.ident_value is not None and obj.ident_value)
 

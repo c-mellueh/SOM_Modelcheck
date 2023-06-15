@@ -1,26 +1,44 @@
 import re
 import sqlite3
 import issues
+import datetime
 from ifcopenshell import entity_instance
 guids = dict()
+
+def remove_existing_issues(cursor,project_name,creation_date,file_name):
+    query = f"""
+    DELETE FROM issues
+    WHERE short_description in (
+    SELECT short_description from issues
+    INNER JOIN entities  on issues.GUID = entities.GUID
+    where issues.creation_date = '{creation_date}'
+    AND entities.Project = '{project_name}'
+    AND entities.datei = '{file_name}')
+    """
+    cursor.execute(query)
+
 
 def create_tables(db_path):
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
-    c.execute('''
-    DROP TABLE IF EXISTS entities
-    ''')
-    c = conn.cursor()
-    c.execute('''
-    DROP TABLE IF EXISTS issues
-    ''')
+    # c.execute('''
+    # DROP TABLE IF EXISTS entities
+    # ''')
+    # c = conn.cursor()
+    # c.execute('''
+    # DROP TABLE IF EXISTS issues
+    # ''')
+
+    ###entities###
     c.execute('''
               CREATE TABLE IF NOT EXISTS entities
-              ([GUID] CHAR(64) PRIMARY KEY, [ifc_type] TEXT,[x_pos] DOUBLE,[y_pos] DOUBLE,[z_pos] DOUBLE,[datei] TEXT,[bauteilKlassifikation] TEXT)
+              ([GUID] CHAR(64) PRIMARY KEY,[Project] TEXT, [ifc_type] TEXT,[x_pos] DOUBLE,[y_pos] DOUBLE,[z_pos] DOUBLE,[datei] TEXT,[bauteilKlassifikation] TEXT)
               ''')
+
+    ###issues###
     c.execute('''
               CREATE TABLE IF NOT EXISTS issues
-              ([GUID] CHAR(64), [short_description] TEXT,[issue_type] INT,[PropertySet] TEXT, [Attribut] TEXT)
+              ([creation_date] TEXT,[GUID] CHAR(64), [short_description] TEXT,[issue_type] INT,[PropertySet] TEXT, [Attribut] TEXT)
               ''')
 
     conn.commit()
@@ -29,13 +47,14 @@ def create_tables(db_path):
 
 def add_issues(cursor, guid, description, issue_type, attribute, add_zero_width, pset_name="", attribute_name=""):
     guid = transform_guid(guid, add_zero_width)
+    date = datetime.date.today()
     if attribute is not None:
         pset_name = attribute.property_set.name
         attribute_name = attribute.name
     cursor.execute(f'''
-          INSERT INTO issues (GUID,short_description,issue_type,PropertySet,Attribut)
+          INSERT INTO issues (creation_date,GUID,short_description,issue_type,PropertySet,Attribut)
                 VALUES
-                ('{guid}','{description}',{issue_type},'{pset_name}','{attribute_name}')
+                ('{date}','{guid}','{description}',{issue_type},'{pset_name}','{attribute_name}')
           ''')
 
 
@@ -47,7 +66,7 @@ def transform_guid(guid: str, add_zero_width: bool):
         return guid
 
 
-def db_create_entity(element: entity_instance, cursor, file_name, bauteil_klasse, add_zero_width):
+def db_create_entity(element: entity_instance, cursor,project, file_name, bauteil_klasse, add_zero_width):
     guid = transform_guid(element.GlobalId, add_zero_width)
     ifc_type = element.is_a()
     center = [0, 0, 0]
@@ -56,12 +75,14 @@ def db_create_entity(element: entity_instance, cursor, file_name, bauteil_klasse
         return
     else:
         guids[guid] = file_name
-    cursor.execute(f'''
-              INSERT INTO entities (GUID,ifc_type,x_pos,y_pos,z_pos,datei,bauteilKlassifikation)
-                    VALUES
-                    ('{guid}','{ifc_type}',{center[0]},{center[1]},{center[2]},'{file_name}','{bauteil_klasse}')
-              ''')
-
+    try:
+        cursor.execute(f'''
+                  INSERT INTO entities (GUID,Project,ifc_type,x_pos,y_pos,z_pos,datei,bauteilKlassifikation)
+                        VALUES
+                        ('{guid}','{project}','{ifc_type}',{center[0]},{center[1]},{center[2]},'{file_name}','{bauteil_klasse}')
+                  ''')
+    except sqlite3.IntegrityError:
+        pass
 
 
 def query_issues(cursor):

@@ -4,12 +4,13 @@ import time
 
 import SOMcreator
 import tqdm
+import datetime
 from SOMcreator import Project
 from SOMcreator import constants as SOMconstants
 from ifcopenshell.util import element as ifc_el
 
 import issues
-from sql import db_create_entity
+from sql import db_create_entity,remove_existing_issues
 
 GROUP = "Gruppe"
 ELEMENT = "Element"
@@ -96,6 +97,9 @@ def check_group(group, sub_group, ag, bk, ident_dict):
     subbauteilk = ifc_el.get_pset(sub_group, ag, bk)
     parent_obj = ident_dict.get(bauteilk)
     child_obj = ident_dict.get(subbauteilk)
+    if child_obj is None:
+        print(f"Achtung Subbauteilklasse '{subbauteilk}' nicht bekannt")
+        return False
     child_aggregations = child_obj.aggregation_representations
     for parent_aggregation in parent_obj.aggregation_representations:
         if parent_aggregation.children.intersection(child_aggregations):
@@ -103,7 +107,7 @@ def check_group(group, sub_group, ag, bk, ident_dict):
     return False
 
 
-def check_element(element, ag, bk, cursor, file_name, ident_dict, element_type, add_zero_width):
+def check_element(element, ag, bk, cursor, file_name, ident_dict, element_type, add_zero_width, project_name):
     guid = element.GlobalId
     psets = ifc_el.get_psets(element)
     ag_pset = psets.get(ag)
@@ -113,16 +117,16 @@ def check_element(element, ag, bk, cursor, file_name, ident_dict, element_type, 
 
     if ag_pset is None:
         issues.ident_pset_issue(cursor, guid, ag, element_type, add_zero_width)
-        db_create_entity(element, cursor, file_name, "", add_zero_width)
+        db_create_entity(element, cursor,project_name, file_name, "", add_zero_width)
         return
 
     bauteil_klassifikation = ag_pset.get(bk)
     if bauteil_klassifikation is None:
         issues.ident_issue(cursor, guid, ag, bk, element_type, add_zero_width)
-        db_create_entity(element, cursor, file_name, "", add_zero_width)
+        db_create_entity(element, cursor,project_name, file_name, "", add_zero_width)
         return
     obj_rep = ident_dict.get(bauteil_klassifikation)
-    db_create_entity(element, cursor, file_name, bauteil_klassifikation, add_zero_width)
+    db_create_entity(element, cursor,project_name, file_name, bauteil_klassifikation, add_zero_width)
     if obj_rep is None:
         issues.ident_unknown(cursor, guid, ag, bk, element_type, bauteil_klassifikation, add_zero_width)
         return
@@ -130,18 +134,19 @@ def check_element(element, ag, bk, cursor, file_name, ident_dict, element_type, 
     check_for_attributes(cursor, element, psets, obj_rep, element_type, add_zero_width)
 
 
-def check_all_elements(proj: Project, ifc, file_name, db_name, ag, bk, add_zero_width):
+def check_all_elements(proj: Project, ifc, file_name, db_name, ag, bk, add_zero_width,project_name):
     conn = sqlite3.connect(db_name)
     cursor = conn.cursor()
+    remove_existing_issues(cursor,project_name,datetime.date.today(),file_name)
+
     ident_dict = {obj.ident_value: obj for obj in proj.objects}
     for element in tqdm.tqdm(ifc.by_type("IfcElement"), desc=f"[{ELEMENT}] {file_name}"):
-        check_element(element, ag, bk, cursor, file_name, ident_dict, ELEMENT, add_zero_width)
+        check_element(element, ag, bk, cursor, file_name, ident_dict, ELEMENT, add_zero_width,project_name)
 
     for element in tqdm.tqdm(ifc.by_type("IfcGroup"), desc=f"[{GROUP}] {file_name}"):
         relationships = getattr(element, "IsGroupedBy", [])
         if gruppe_zu_pruefen(cursor, element, ag, bk, add_zero_width):
-            print(f"Teste {element.Name}")
-            check_element(element, ag, bk, cursor, file_name, ident_dict, GROUP, add_zero_width)
+            check_element(element, ag, bk, cursor, file_name, ident_dict, GROUP, add_zero_width,project_name)
             if not relationships:
                 issues.empty_group_issue(cursor, element, add_zero_width)
 
